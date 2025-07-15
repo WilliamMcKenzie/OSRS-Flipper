@@ -84,7 +84,7 @@ def FlipCheck():
                 sell_price = instabuy
                 buy_price = instasell
                 
-                profit = ((sell_price - buy_price - math.floor(sell_price * 0.01)) * i["limit"])
+                profit = ((sell_price - buy_price - math.floor(sell_price * 0.02)) * i["limit"])
                 buy_volume = hourly[id]["lowPriceVolume"]
                 sell_volume = hourly[id]["highPriceVolume"]
                 ratio = buy_volume/sell_volume if sell_volume > 0 else -1
