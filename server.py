@@ -4,7 +4,11 @@ import threading
 import time
 import math
 
-# Server config
+headers = {
+    'User-Agent': 'Osrs real time prices graphing',
+}
+
+
 delay_secs = 10
 connections = {}
 port = 12855
@@ -27,9 +31,9 @@ latest = None
 def FetchData():
     global m, h, l, mapping, hourly, latest
     
-    m = requests.get("https://prices.runescape.wiki/api/v1/osrs/mapping")
-    h = requests.get("https://prices.runescape.wiki/api/v1/osrs/1h")
-    l = requests.get("https://prices.runescape.wiki/api/v1/osrs/latest")
+    m = requests.get("https://prices.runescape.wiki/api/v1/osrs/mapping",headers=headers)
+    h = requests.get("https://prices.runescape.wiki/api/v1/osrs/1h",headers=headers)
+    l = requests.get("https://prices.runescape.wiki/api/v1/osrs/latest",headers=headers)
     
     mapping = m.json()
     hourly = h.json()["data"]
@@ -89,13 +93,14 @@ def FlipCheck():
                 sell_volume = hourly[id]["highPriceVolume"]
                 ratio = buy_volume/sell_volume if sell_volume > 0 else -1
                 
-                valid_ratio = ratio > 0.75 and ratio < 1.5
+                valid_ratio = ratio > 0.75
                 valid_profit = profit > 0
                 valid_volume = buy_volume > 50000 and sell_volume > 50000
                 
                 if valid_ratio and valid_volume and valid_profit and CheckVolatility(id, buy_price, sell_price):
                 #if not i["members"] and valid_volume:
                     # Append the flip, with its id, profit and how much it would cost to achieve that profit.
+                    print("added")
                     flips.append({
                         "name" : i["name"],
                         "id" : id,
@@ -164,6 +169,8 @@ def Main():
         FlipCheck()
         BuyItems()
         ReassessFlips()
+        print(flips)
+
         time.sleep(delay_secs)
 
 # Given a socket, send it a message
