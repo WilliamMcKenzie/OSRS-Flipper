@@ -74,8 +74,8 @@ def FlipCheck():
     for i in mapping:
         id = str(i["id"])
         if latest and id in latest and id in hourly:
-            instabuy = latest[id]["high"]
-            instasell = latest[id]["low"]
+            instabuy = latest[id]["high"] - 1
+            instasell = latest[id]["low"] + 1
             
             sell_diff = CompareSimilarity(instabuy, hourly[id]["avgHighPrice"])
             buy_diff = CompareSimilarity(instasell, hourly[id]["avgLowPrice"])
@@ -148,8 +148,8 @@ def ReassessFlips():
                 id = slot["id"]
                 prev_buy = slot["buy_price"]
                 prev_sell = slot["sell_price"]
-                buy_price = latest[id]["low"]
-                sell_price = latest[id]["high"]
+                buy_price = latest[id]["low"] + 1
+                sell_price = latest[id]["high"] - 1
 
                 if not slot["bought"] and prev_buy != buy_price:
                     SendMessage(connection["socket"], f"cancel buy {i}")
