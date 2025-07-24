@@ -4,7 +4,11 @@ import threading
 import time
 import math
 
-# Server config
+headers = {
+    'User-Agent': 'Osrs real time prices graphing',
+}
+
+
 delay_secs = 10
 connections = {}
 port = 12855
@@ -27,9 +31,9 @@ latest = None
 def FetchData():
     global m, h, l, mapping, hourly, latest
     
-    m = requests.get("https://prices.runescape.wiki/api/v1/osrs/mapping")
-    h = requests.get("https://prices.runescape.wiki/api/v1/osrs/1h")
-    l = requests.get("https://prices.runescape.wiki/api/v1/osrs/latest")
+    m = requests.get("https://prices.runescape.wiki/api/v1/osrs/mapping",headers=headers)
+    h = requests.get("https://prices.runescape.wiki/api/v1/osrs/1h",headers=headers)
+    l = requests.get("https://prices.runescape.wiki/api/v1/osrs/latest",headers=headers)
     
     mapping = m.json()
     hourly = h.json()["data"]
@@ -74,8 +78,8 @@ def FlipCheck():
     for i in mapping:
         id = str(i["id"])
         if latest and id in latest and id in hourly:
-            instabuy = latest[id]["high"]
-            instasell = latest[id]["low"]
+            instabuy = latest[id]["high"] - 1
+            instasell = latest[id]["low"] + 1
             
             sell_diff = CompareSimilarity(instabuy, hourly[id]["avgHighPrice"])
             buy_diff = CompareSimilarity(instasell, hourly[id]["avgLowPrice"])
@@ -84,18 +88,20 @@ def FlipCheck():
                 sell_price = instabuy
                 buy_price = instasell
                 
-                profit = ((sell_price - buy_price - math.floor(sell_price * 0.01)) * i["limit"])
+                profit = ((sell_price - buy_price - math.floor(sell_price * 0.02)) * i["limit"])
                 buy_volume = hourly[id]["lowPriceVolume"]
                 sell_volume = hourly[id]["highPriceVolume"]
                 ratio = buy_volume/sell_volume if sell_volume > 0 else -1
                 
-                valid_ratio = ratio > 0.75 and ratio < 1.5
+                valid_ratio = ratio > 0.75
                 valid_profit = profit > 0
                 valid_volume = buy_volume > 50000 and sell_volume > 50000
+                valid = valid_ratio and valid_volume and valid_profit and CheckVolatility(id, buy_price, sell_price)
                 
-                if valid_ratio and valid_volume and valid_profit and CheckVolatility(id, buy_price, sell_price):
-                #if not i["members"] and valid_volume:
+                #if valid:
+                if not i["members"] and valid:
                     # Append the flip, with its id, profit and how much it would cost to achieve that profit.
+                    print("added")
                     flips.append({
                         "name" : i["name"],
                         "id" : id,
@@ -148,8 +154,8 @@ def ReassessFlips():
                 id = slot["id"]
                 prev_buy = slot["buy_price"]
                 prev_sell = slot["sell_price"]
-                buy_price = latest[id]["low"]
-                sell_price = latest[id]["high"]
+                buy_price = latest[id]["low"] + 1
+                sell_price = latest[id]["high"] - 1
 
                 if not slot["bought"] and prev_buy != buy_price:
                     SendMessage(connection["socket"], f"cancel buy {i}")
@@ -164,6 +170,8 @@ def Main():
         FlipCheck()
         BuyItems()
         ReassessFlips()
+        print(flips)
+
         time.sleep(delay_secs)
 
 # Given a socket, send it a message
@@ -228,4 +236,3 @@ accept_thread = threading.Thread(target=AcceptConnections)
 
 main_thread.start()
 accept_thread.start()
-
