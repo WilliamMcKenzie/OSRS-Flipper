@@ -60,8 +60,8 @@ def CheckVolatility(id, buy, sell):
         try:
             if (high := data["avgHighPrice"]) > ceiling:
                 ceiling = high
-            if (low := data["avgLowPrice"]) > ceiling:
-                ceiling = low
+            if (low := data["avgLowPrice"]) > floor:
+                floor = low
         except:
             continue
     
@@ -96,7 +96,9 @@ def FlipCheck():
                 valid_ratio = ratio > 0.75
                 valid_profit = profit > 0
                 valid_volume = buy_volume > 50000 and sell_volume > 50000
-                valid = valid_ratio and valid_volume and valid_profit and CheckVolatility(id, buy_price, sell_price)
+                #valid = valid_ratio and valid_volume and valid_profit and CheckVolatility(id, buy_price, sell_price)
+                valid = valid_ratio and valid_volume and valid_profit
+				
                 
                 #if valid:
                 if not i["members"] and valid:
@@ -112,8 +114,10 @@ def FlipCheck():
                         "sell" : sell_price,
                         "limit" : i["limit"]
                     })
-    
-    flips.sort(key=lambda flip : flip["profit_per_gp"], reverse=True)
+				elif id == 851:
+					print("LONGBOW")
+	
+	flips.sort(key=lambda flip : flip["profit_per_gp"], reverse=True)
 
 def BuyItems():
     global flips, connections
