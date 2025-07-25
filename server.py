@@ -3,12 +3,15 @@ import requests
 import threading
 import time
 import math
+import json
+
+versionname = "v0.3.0" # ----- UPDATE VERSION NAME EACH UPDATE -----
 
 headers = {
     'User-Agent': 'Osrs real time prices graphing',
 }
 
-
+tax = 0.02
 delay_secs = 10
 connections = {}
 port = 12855
@@ -114,10 +117,10 @@ def FlipCheck():
                         "sell" : sell_price,
                         "limit" : i["limit"]
                     })
-				elif id == 851:
-					print("LONGBOW")
+                elif id == 851:
+                    print("LONGBOW")
 	
-	flips.sort(key=lambda flip : flip["profit_per_gp"], reverse=True)
+    flips.sort(key=lambda flip : flip["profit_per_gp"], reverse=True)
 
 def BuyItems():
     global flips, connections
@@ -136,7 +139,13 @@ def BuyItems():
                 for i in range(len(slots)):
                     if slots[i]["id"] == None:
                         SendMessage(connection["socket"], f"buy {amount_to_buy} {flip["id"]} {flip["buy"]} {i}")
-                        connection["slots"][i] = { "id" : flip["id"], "bought" : False, "amount" : amount_to_buy, "buy_price" : flip["buy"], "sell_price" : flip["sell"] }
+                        connection["slots"][i] = {  "id" : flip["id"],
+                                                    "bought" : False,
+                                                    "amount" : amount_to_buy,
+                                                    "buy_price" : flip["buy"],
+                                                    "sell_price" : flip["sell"],
+                                                    "gp_spent": flip["buy"] * amount_to_buy,
+                                                    "gp_earned": 0}
                         break
             except:
                 pass
@@ -229,14 +238,59 @@ def ManageAccount(id):
 
                 SendMessage(connections[id]["socket"], f"sell {slot["amount"]} {slot["id"]} {sell_price} {slot_index}")
             else:
+                sell_price = slot["sell_price"]
+                earned_gp = sell_price * slot["amount"] - math.floor(sell_price * slot["amount"] * tax)
+                slot["gp_earned"] = earned_gp
                 connections[id]["slots"][slot_index] = { "id" : None }
         elif type == "gp":
             [n, t, gp] = message
             connections[id]["gp"] = int(gp)
 
+def DataCollection():
+    while True:
+        # Opens data file
+        with open("profitdata.json", "r") as profit_file:
+            profitdata = json.load(profit_file)
+        
+        # Initializes data vars from current version, if not found then returns 0 on all values
+        versiondata = profitdata.get(versionname, {
+            "time-ran-mins": 0,
+            "avg-roi": 0,
+            "total-spent-gp": 0,
+            "total-earned-gp": 0,
+            "total-profit-gp": 0
+        })
+
+        # Updates and prints data every 10 seconds
+        for i in range(3):
+            versiondata["time-ran-mins"] = round(versiondata["time-ran-mins"] + 0.1667, 4)
+
+            totalspent = totalearned = 0
+            for conn in connections.values():
+                for slot in conn["slots"]:
+                    if slot.get("gp_spent"):
+                        totalspent += slot["gp_spent"]
+                    if slot.get("gp_earned"):
+                        totalearned += slot["gp_earned"]
+                    slot["gp_spent"] = slot["gp_earned"] = 0
+            versiondata["total-spent-gp"] += totalspent
+            versiondata["total-earned-gp"] += totalearned
+
+            versiondata["avg-roi"] = (versiondata["total-earned-gp"]/versiondata["total-spent-gp"] - 1) if versiondata["total-spent-gp"]>0 else 0
+            versiondata["total-profit-gp"] = versiondata["total-earned-gp"] - versiondata["total-spent-gp"]
+
+            print(f"RSMM {versionname}: Avg. ROI: {versiondata["avg-roi"]*100:.2f}%. Total Profit: {versiondata["total-profit-gp"]} GP. Time Ran: {math.floor(versiondata["time-ran-mins"])} min.")
+            time.sleep(10)
+
+        # Every 30 seconds, compiles and sends updated version data to file
+        profitdata[versionname] = versiondata
+        with open("profitdata.json", "w") as profit_file:
+            json.dump(profitdata, profit_file, indent=4)
 
 main_thread = threading.Thread(target=Main)
 accept_thread = threading.Thread(target=AcceptConnections)
+data_thread = threading.Thread(target=DataCollection)
 
 main_thread.start()
 accept_thread.start()
+data_thread.start()
