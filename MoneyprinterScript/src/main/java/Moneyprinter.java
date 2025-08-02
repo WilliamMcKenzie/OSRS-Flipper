@@ -42,7 +42,7 @@ public class Moneyprinter extends AbstractScript {
 
     public Socket connectToServer() {
         try {
-            s = new Socket("127.0.0.1", 12855);
+            s = new Socket("127.0.0.1", 12856);
             in = new DataInputStream(s.getInputStream());
             out = new DataOutputStream(s.getOutputStream());
         }
