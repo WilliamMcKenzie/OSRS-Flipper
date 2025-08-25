@@ -1,4 +1,6 @@
 import socket
+import sys
+import os
 import atexit
 import requests
 import threading
@@ -13,7 +15,7 @@ headers = {
 }
 
 tax = 0.02
-delay_secs = 2
+delay_secs = 10
 connections = {}
 port = 12856
 
@@ -78,13 +80,14 @@ def CheckItems(mapping, hourly, latest):
 		flips.sort(key=lambda flip : flip["value"], reverse=False)
 
 def PrintFlips(flips):
-	for flip in flips:
-		print(flip["name"])
-		print(flip["profit"])
-		print(flip["value"])
-		print("\n")
-
-
+    os.system('clear')
+    for flip in flips:
+        print(flip["name"])
+        print(flip["profit"])
+        print(f"Buy: {flip["buy"]}")
+        print(f"Sell: {flip["sell"]}")
+        print(flip["value"])
+        print("\n")
 
 
 
@@ -125,61 +128,100 @@ def SendMessage(socket, message):
 	socket.send(len(encoded).to_bytes(2, 'big') + encoded)
 
 def RecieveMessage(socket):
-	return socket.recv(1024).decode()
+    return socket.recv(1024).decode()
 
 def AcceptConnections():
-	global connections
-	
-	while True:
-		print("Accepting")
-		c, (address, id) = s.accept()
-		
-		client_data = [int(data) for data in c.recv(1024).decode().split(" ") if data.isdigit()]
-		print(f"Recieved connection from {address}")
-		print(f"GP: {client_data[0]}  SLOTS: {client_data[1]}")
-		
-		slots = [ { "id" : None } for i in range(client_data[1]) ]
-		connections[id] = {
-			"commands" : [],
-			"socket" : c,
-			"gp" : client_data[0],
-			"slots" : slots,
-			"members" : client_data[1] > 3
-		}
-		
-		account_thread = threading.Thread(target=ManageAccount,args=[id])
-		account_thread.start()
+    global connections
+    
+    while True:
+        try:
+            print("Accepting connections")
+            c, (address, id) = s.accept()
+            
+            client_data = [int(data) for data in c.recv(1024).decode().split(" ") if data.isdigit()]
+            os.system('clear')
+            print(f"Recieved connection from {address}")
+            print(f"GP: {client_data[0]}  SLOTS: {client_data[1]}")
+            
+            slots = [ { "id" : None } for i in range(client_data[1]) ]
+            connections[id] = {
+                "commands" : [],
+                "socket" : c,
+                "gp" : client_data[0],
+                "slots" : slots,
+                "members" : client_data[1] > 3
+            }
+            
+            account_thread = threading.Thread(target=ManageAccount,args=[id])
+            account_thread.daemon = True
+            account_thread.start()
+        except:
+            print("Error accepting connections")
+            os._exit(1)
 
 def ManageAccount(id):
-	while True:
-		message = RecieveMessage(connections[id]["socket"]).split(" ")
-		type = message[1]
-		if type == "collected":
-			[n, t, slot_index] = message
-			slot_index = int(slot_index)
-			slot = connections[id]["slots"][slot_index]
-			
-			if not "bought" in slot or not slot["bought"]:
-				connections[id]["slots"][slot_index]["bought"] = True
-				
-				high = latest[slot["id"]]["high"] if slot["id"] in latest else 0
-				sell_price = max(high, slot["sell_price"])
-				
-				SendMessage(connections[id]["socket"], f"sell {slot["amount"]} {slot["id"]} {sell_price} {slot_index}")
-			else:
-				sell_price = slot["sell_price"]
-				earned_gp = sell_price * slot["amount"] - math.floor(sell_price * slot["amount"] * tax)
-				slot["gp_earned"] = earned_gp
-				connections[id]["slots"][slot_index] = { "id" : None }
-		elif type == "gp":
-			[n, t, gp] = message
-			connections[id]["gp"] = int(gp)
+    while True:
+        message = RecieveMessage(connections[id]["socket"]).split(" ")
+        type = message[1]
+        
+        if type == "collected":
+            [n, t, slot_index] = message
+            slot_index = int(slot_index)
+            slot = connections[id]["slots"][slot_index]
+
+            if not "bought" in slot or not slot["bought"]:
+                connections[id]["slots"][slot_index]["bought"] = True
+
+                high = latest[slot["id"]]["high"] if slot["id"] in latest else 0
+                sell_price = max(high, slot["sell_price"])
+
+                SendMessage(connections[id]["socket"], f"sell {slot["amount"]} {slot["id"]} {sell_price} {slot_index}")
+            else:
+                sell_price = slot["sell_price"]
+                earned_gp = sell_price * slot["amount"] - math.floor(sell_price * slot["amount"] * tax)
+                slot["gp_earned"] = earned_gp
+                connections[id]["slots"][slot_index] = { "id" : None }
+        elif type == "gp":
+            [n, t, gp] = message
+            connections[id]["gp"] = int(gp)
+
+def Exit():
+    input("Enter to stop server\n")
+    s.close()
+    
+exit_thread = threading.Thread(target=Exit)
+exit_thread.daemon = True
+exit_thread.start()
+
+server_thread = threading.Thread(target=AcceptConnections)
+server_thread.daemon = True
+server_thread.start()
+
+def exit_handler():
+    s.close()
+
+atexit.register(exit_handler)
+
+while True:
+	FetchData()
+	CheckItems(mapping, hourly, latest)
+	PrintFlips(flips)
+	
+	time.sleep(delay_secs)
+
+
+
+
+
+
+
+
 
 
 def DataCollection():
 	while True:
 		# Opens data file
-        with open("profitdata.json", "r") as profit_file:
+		with open("profitdata.json", "r") as profit_file:
 			profitdata = json.load(profit_file)
         
 		# Initializes data vars from current version, if not found then returns 0 on all values
@@ -203,8 +245,8 @@ def DataCollection():
 					if slot.get("gp_earned"):
 						totalearned += slot["gp_earned"]
 				slot["gp_spent"] = slot["gp_earned"] = 0
-            versiondata["total-spent-gp"] += totalspent
-            versiondata["total-earned-gp"] += totalearned
+			versiondata["total-spent-gp"] += totalspent
+			versiondata["total-earned-gp"] += totalearned
             
 			versiondata["avg-roi"] = (versiondata["total-earned-gp"]/versiondata["total-spent-gp"] - 1) if versiondata["total-spent-gp"]>0 else 0
 			versiondata["total-profit-gp"] = versiondata["total-earned-gp"] - versiondata["total-spent-gp"]
@@ -217,19 +259,5 @@ def DataCollection():
 		with open("profitdata.json", "w") as profit_file:
 			json.dump(profitdata, profit_file, indent=4)
 
-
-accept_thread = threading.Thread(target=AcceptConnections)
-accept_thread.start()
-data_thread = threading.Thread(target=DataCollection)
-data_thread.start()
-
-def exit_handler():
-    s.close()
-
-atexit.register(exit_handler)
-
-while True:
-	FetchData()
-	CheckItems(mapping, hourly, latest)
-	PrintFlips(flips)
-	time.sleep(delay_secs)
+#data_thread = threading.Thread(target=DataCollection)
+#data_thread.start()

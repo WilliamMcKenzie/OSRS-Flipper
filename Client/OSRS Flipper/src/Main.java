@@ -14,11 +14,12 @@ import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 import org.dreambot.api.wrappers.items.Item;
 import org.dreambot.*;
+import org.dreambot.api.wrappers.widgets.WidgetChild;
 
-@ScriptManifest(name = "Moneyprinter", description = "Its raining cash!", author = "WilliamQM",
+@ScriptManifest(name = "OSRS Flipper", description = "Passive income, Luke Belmar style", author = "WilliamQM",
         version = 1.0, category = Category.MONEYMAKING, image = "")
 
-public class Moneyprinter extends AbstractScript {
+public class Main extends AbstractScript {
     boolean connected = false;
     int slot_count = 0;
     ArrayList<WidgetChild[]> slot_widgets = new ArrayList<>();
@@ -76,20 +77,20 @@ public class Moneyprinter extends AbstractScript {
                 slot_count = GrandExchange.getOpenSlots();
 
                 out.writeUTF(String.format(" %d %d", gp, slot_count));
-            } catch (IOException e) {
-                Logger.log("EROR CONNECTING");
-            }
 
-            Thread serverListener = new Thread(() -> {
-                while (connected) {
-                    String command = recieveData();
-                    if (command != null) {
-                        String[] data = command.split(" ");
-                        queue.add(data);
+                Thread serverListener = new Thread(() -> {
+                    while (connected) {
+                        String command = recieveData();
+                        if (command != null) {
+                            String[] data = command.split(" ");
+                            queue.add(data);
+                        }
                     }
-                }
-            });
-            serverListener.start();
+                });
+                serverListener.start();
+            } catch (RuntimeException | IOException e) {
+                Logger.log("Error connecting");
+            }
         }
         else if (GrandExchange.isOpen()) {
             if (GrandExchange.isReadyToCollect()) {
@@ -99,7 +100,7 @@ public class Moneyprinter extends AbstractScript {
                         try {
                             out.writeUTF(String.format(" collected %d", i));
                         } catch (IOException e) {
-                            Logger.log("ERROR OUTPUTTING");
+                            Logger.log("Error sending collection confirmation message");
                         }
                     }
                 }
@@ -107,7 +108,7 @@ public class Moneyprinter extends AbstractScript {
                 try {
                     out.writeUTF(String.format(" gp %d", gp));
                 } catch (IOException e) {
-                    Logger.log("Errorrrrrr");
+                    Logger.log("Error sending gp message");
                 }
                 GrandExchange.collect();
             }
@@ -115,68 +116,66 @@ public class Moneyprinter extends AbstractScript {
             ArrayList<String[]> queue_cache = new ArrayList<>(queue);
             queue.clear();
             for (String[] data : queue_cache) {
-                switch (data[0]) {
-                    case "buy" -> {
-                        int slot = Integer.parseInt(data[4]);
-                        int item_id = Integer.parseInt(data[2]);
+                if (data[0].equals("buy")) {
+                    int slot = Integer.parseInt(data[4]);
+                    int item_id = Integer.parseInt(data[2]);
 
-                        sleep(1000);
-                        slot_widgets.get(slot)[0].interact();
-                        sleep(2000);
-                        if (GrandExchange.isBuyOpen()) {
-                            GrandExchange.buyItem(item_id, Integer.parseInt(data[1]), Integer.parseInt(data[3]));
-                        } else {
-                            Logger.log("BUY NOT OPEN");
-                        }
+                    sleep(1000);
+                    slot_widgets.get(slot)[0].interact();
+                    sleep(2000);
+                    if (GrandExchange.isBuyOpen()) {
+                        GrandExchange.buyItem(item_id, Integer.parseInt(data[1]), Integer.parseInt(data[3]));
+                    } else {
+                        Logger.log("Buy not open");
                     }
-                    case "sell" -> {
-                        int slot = Integer.parseInt(data[4]);
-                        int item_id = Integer.parseInt(data[2]);
+                }
+                else if (data[0].equals("sell")) {
+                    int slot = Integer.parseInt(data[4]);
+                    int item_id = Integer.parseInt(data[2]);
 
-                        sleep(1000);
-                        slot_widgets.get(slot)[1].interact();
-                        sleep(2000);
-                        if (GrandExchange.isSellOpen()) {
-                            GrandExchange.sellItem(item_id, Integer.parseInt(data[1]), Integer.parseInt(data[3]));
-                        } else {
-                            Logger.log("SELL NOT OPEN");
-                        }
+                    sleep(1000);
+                    slot_widgets.get(slot)[1].interact();
+                    sleep(2000);
+                    if (GrandExchange.isSellOpen()) {
+                        GrandExchange.sellItem(item_id, Integer.parseInt(data[1]), Integer.parseInt(data[3]));
+                    } else {
+                        Logger.log("Sell not open");
                     }
-                    case "cancel" -> {
-                        String which = data[1];
-                        int slot = Integer.parseInt(data[2]);
+                }
+                else if (data[0].equals("cancel")) {
+                    String which = data[1];
+                    int slot = Integer.parseInt(data[2]);
 
-                        sleep(1000);
-                        slot_widgets.get(slot)[2].interact();
-                        sleep(2000);
-                        Widgets.getWidgetChild(465, 23, 0).interact();
-                        sleep(1000);
-                        Widgets.getWidgetChild(465, 24, 0).interact();
-                        sleep(1000);
-                        Widgets.getWidgetChild(465, 24, 1).interact();
+                    sleep(1000);
+                    slot_widgets.get(slot)[2].interact();
+                    sleep(2000);
+                    Widgets.getWidgetChild(465, 23, 0).interact();
+                    sleep(1000);
+                    Widgets.getWidgetChild(465, 24, 0).interact();
+                    sleep(1000);
+                    Widgets.getWidgetChild(465, 24, 1).interact();
 
-                        if (which.equals("sell")) {
-                            try {
-                                out.writeUTF(String.format(" collected %d", slot));
-                            } catch (IOException e) {
-                                Logger.log("Error sending");
-                            }
-                        }
-
-                        sleep(1000);
-                        int gp = Inventory.get(995).getAmount();
+                    if (which.equals("sell")) {
                         try {
-                            out.writeUTF(String.format(" gp %d", gp));
+                            out.writeUTF(String.format(" collected %d", slot));
                         } catch (IOException e) {
-                            Logger.log("Errorrrrrr");
+                            Logger.log("Error sending sell confirmation message");
                         }
+                    }
 
-                        if (which.equals("buy")) {
-                            try {
-                                out.writeUTF(String.format(" canceled %d", slot));
-                            } catch (IOException e) {
-                                Logger.log("Error sending");
-                            }
+                    sleep(1000);
+                    int gp = Inventory.get(995).getAmount();
+                    try {
+                        out.writeUTF(String.format(" gp %d", gp));
+                    } catch (IOException e) {
+                        Logger.log("Error sending gp message");
+                    }
+
+                    if (which.equals("buy")) {
+                        try {
+                            out.writeUTF(String.format(" canceled %d", slot));
+                        } catch (IOException e) {
+                            Logger.log("Error sending cancellation message");
                         }
                     }
                 }
